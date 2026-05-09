@@ -1,0 +1,66 @@
+# Isolated deployment: only frontend exposed; secrets sourced from .env.
+# Usage:
+#   docker compose -p opik -f docker-compose.yaml -f docker-compose.isolated.yaml --profile opik up -d
+
+services:
+  mysql:
+    ports: !reset []
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+  redis:
+    ports: !reset []
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+
+  clickhouse:
+    ports: !reset []
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+
+  zookeeper:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+    environment:
+      STATE_DB_DATABASE_NAME: ${MYSQL_DATABASE}
+      STATE_DB_USER: ${MYSQL_USER}
+      STATE_DB_PASS: ${MYSQL_PASSWORD}
+      STATE_DB_URL: "mysql:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true&rewriteBatchedStatements=true"
+      ANALYTICS_DB_MIGRATIONS_USER: ${CLICKHOUSE_USER}
+      ANALYTICS_DB_MIGRATIONS_PASS: ${CLICKHOUSE_PASSWORD}
+      ANALYTICS_DB_DATABASE_NAME: ${CLICKHOUSE_DB}
+      ANALYTICS_DB_USERNAME: ${CLICKHOUSE_USER}
+      ANALYTICS_DB_PASS: ${CLICKHOUSE_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/
+
+  python-backend:
+    ports: !reset []
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
+  guardrails-backend:
+    ports: !reset []
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:5175:5173"
+    volumes:
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
+
+networks:
+  default:
+    name: opik-network
+    driver: bridge

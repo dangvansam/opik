@@ -60,7 +60,7 @@ public class WebhookPublisher {
 
         String eventId = idGenerator.generateId().toString();
 
-        var webhookEvent = WebhookEvent.builder()
+        var eventBuilder = WebhookEvent.builder()
                 .id(eventId)
                 .url(alert.webhook().url())
                 .eventType(eventType)
@@ -75,8 +75,13 @@ public class WebhookPublisher {
                 .maxRetries(maxRetries)
                 .workspaceId(workspaceId)
                 .workspaceName(workspaceName)
-                .createdAt(Instant.now())
-                .build();
+                .createdAt(Instant.now());
+
+        if (alert.webhook().retryDelayMs() != null) {
+            eventBuilder.initialRetryDelayMs(alert.webhook().retryDelayMs());
+        }
+
+        var webhookEvent = eventBuilder.build();
 
         log.info("Publishing webhook event: id='{}', type='{}', workspace='{}', url='{}'",
                 eventId, eventType, workspaceId, alert.webhook().url());

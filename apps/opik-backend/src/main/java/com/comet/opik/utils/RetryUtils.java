@@ -46,15 +46,24 @@ public class RetryUtils {
     @Getter
     public static class RetryableHttpException extends RuntimeException {
         private final int statusCode;
+        private final String responseBody;
 
         public RetryableHttpException(String message, int statusCode) {
             super(message);
             this.statusCode = statusCode;
+            this.responseBody = null;
+        }
+
+        public RetryableHttpException(String message, int statusCode, String responseBody) {
+            super(message);
+            this.statusCode = statusCode;
+            this.responseBody = responseBody;
         }
 
         public RetryableHttpException(String message, int statusCode, Throwable cause) {
             super(message, cause);
             this.statusCode = statusCode;
+            this.responseBody = null;
         }
     }
 

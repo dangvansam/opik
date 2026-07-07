@@ -23,6 +23,8 @@ import {
 import { convertColumnDataToColumn } from "@/lib/table";
 import useLocalStorageState from "use-local-storage-state";
 import TimeCell from "@/shared/DataTableCells/TimeCell";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
+import RunsTab from "@/v2/pages/AutomationLogsPage/RunsTab";
 
 const generateEvaluatorRuleLogItemKey = (
   item: EvaluatorRuleLogItem,
@@ -55,10 +57,13 @@ const COLUMNS_WIDTH_KEY = "automation-logs-columns-width";
 const AutomationLogsPage = () => {
   const {
     rule_id,
+    tab,
   }: {
     rule_id?: string;
+    tab?: string;
   } = useSearch({ strict: false });
 
+  const [activeTab, setActiveTab] = useState(tab || "logs");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [columnsWidth, setColumnsWidth] = useLocalStorageState<
     Record<string, number>
@@ -72,7 +77,7 @@ const AutomationLogsPage = () => {
         ruleId: rule_id!,
       },
       {
-        enabled: Boolean(rule_id),
+        enabled: Boolean(rule_id) && activeTab === "logs",
       },
     );
 
@@ -163,53 +168,85 @@ const AutomationLogsPage = () => {
     return <NoData message="No rule parameters set."></NoData>;
   }
 
-  const isTableLoading = isPending || (isPlaceholderData && rows.length === 0);
-
-  if (!isTableLoading && rows.length === 0) {
-    return <NoData message="There are no logs for this rule."></NoData>;
-  }
+  const isTableLoading =
+    activeTab === "logs" &&
+    (isPending || (isPlaceholderData && rows.length === 0));
 
   return (
     <div className="mx-6 flex h-full flex-col bg-soft-background">
-      <PageBodyScrollContainer>
-        <PageBodyStickyContainer
-          className="flex items-center justify-between py-4"
-          direction="bidirectional"
-        >
-          <h1 className="comet-title-xs truncate break-words">Logs</h1>
-          <div className="flex items-center gap-2">
-            <RefreshButton
-              tooltip="Refresh logs list"
-              isFetching={isFetching}
-              onRefresh={() => refetch()}
-            />
-            <TooltipWrapper
-              content={allExpanded ? "Collapse all" : "Expand all"}
-            >
-              <Button
-                onClick={toggleExpandAll}
-                variant="outline"
-                size="icon-sm"
-              >
-                {allExpanded ? <FoldVertical /> : <UnfoldVertical />}
-              </Button>
-            </TooltipWrapper>
-          </div>
-        </PageBodyStickyContainer>
-        <DataTable
-          columns={columns}
-          data={rows}
-          noData={<DataTableNoData title="There are no logs for this rule." />}
-          TableWrapper={PageBodyStickyTableWrapper}
-          getRowId={(row) => row.id}
-          stickyHeader
-          resizeConfig={resizeConfig}
-          showSkeleton={isTableLoading}
-          showLoadingOverlay={
-            !isTableLoading && isPlaceholderData && isFetching
-          }
-        />
-      </PageBodyScrollContainer>
+      <PageBodyStickyContainer
+        className="flex items-center justify-between pb-2 pt-4"
+        direction="bidirectional"
+      >
+        <h1 className="comet-title-xs truncate break-words">
+          Automation Rule Details
+        </h1>
+      </PageBodyStickyContainer>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList variant="underline">
+          <TabsTrigger variant="underline" value="logs">
+            Logs
+          </TabsTrigger>
+          <TabsTrigger variant="underline" value="runs">
+            Runs
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="logs">
+          {isTableLoading ? (
+            <div className="flex h-full items-center justify-center py-20">
+              <div className="text-muted-foreground">Loading...</div>
+            </div>
+          ) : rows.length === 0 && activeTab === "logs" ? (
+            <NoData message="There are no logs for this rule."></NoData>
+          ) : (
+            <div className="flex h-full flex-col">
+              <PageBodyScrollContainer>
+                <PageBodyStickyContainer
+                  className="flex items-center justify-end py-4"
+                  direction="bidirectional"
+                >
+                  <div className="flex items-center gap-2">
+                    <RefreshButton
+                      tooltip="Refresh logs list"
+                      isFetching={isFetching}
+                      onRefresh={() => refetch()}
+                    />
+                    <TooltipWrapper
+                      content={allExpanded ? "Collapse all" : "Expand all"}
+                    >
+                      <Button
+                        onClick={toggleExpandAll}
+                        variant="outline"
+                        size="icon-sm"
+                      >
+                        {allExpanded ? <FoldVertical /> : <UnfoldVertical />}
+                      </Button>
+                    </TooltipWrapper>
+                  </div>
+                </PageBodyStickyContainer>
+                <DataTable
+                  columns={columns}
+                  data={rows}
+                  noData={
+                    <DataTableNoData title="There are no logs for this rule." />
+                  }
+                  TableWrapper={PageBodyStickyTableWrapper}
+                  getRowId={(row) => row.id}
+                  stickyHeader
+                  resizeConfig={resizeConfig}
+                  showSkeleton={isTableLoading}
+                  showLoadingOverlay={
+                    !isTableLoading && isPlaceholderData && isFetching
+                  }
+                />
+              </PageBodyScrollContainer>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="runs">
+          <RunsTab ruleId={rule_id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -3,6 +3,7 @@ package com.comet.opik.api.resources.v1.priv;
 import com.codahale.metrics.annotation.Timed;
 import com.comet.opik.api.BatchDelete;
 import com.comet.opik.api.LogCriteria;
+import com.comet.opik.api.OnlineEvaluationRun;
 import com.comet.opik.api.Page;
 import com.comet.opik.api.evaluators.AutomationRuleEvaluator;
 import com.comet.opik.api.evaluators.AutomationRuleEvaluatorUpdate;
@@ -251,6 +252,28 @@ public class AutomationRuleEvaluatorsResource {
                 evaluatorId, workspaceId);
 
         return Response.ok(logs).build();
+    }
+
+    @GET
+    @Path("/{id}/runs")
+    @Operation(operationId = "getEvaluatorRunsById", summary = "Get online evaluation runs for an evaluator", description = "Get online evaluation runs for an evaluator rule", responses = {
+            @ApiResponse(responseCode = "200", description = "Online evaluation runs", content = @Content(schema = @Schema(implementation = OnlineEvaluationRun.OnlineEvaluationRunPage.class)))
+    })
+    public Response getRuns(@PathParam("id") UUID evaluatorId,
+            @QueryParam("page") @Min(1) @DefaultValue("1") int page,
+            @QueryParam("size") @Min(1) @DefaultValue("20") int size) {
+        String workspaceId = requestContext.get().getWorkspaceId();
+
+        log.info("Looking for evaluation runs for evaluator: id '{}' on workspace_id '{}'",
+                evaluatorId, workspaceId);
+        OnlineEvaluationRun.OnlineEvaluationRunPage runs = service.getEvaluationRuns(evaluatorId, workspaceId,
+                page, size)
+                .contextWrite(ctx -> setRequestContext(ctx, requestContext))
+                .block();
+        log.info("Found {} evaluation runs for evaluator: id '{}' on workspace_id '{}'", runs.size(),
+                evaluatorId, workspaceId);
+
+        return Response.ok(runs).build();
     }
 
 }

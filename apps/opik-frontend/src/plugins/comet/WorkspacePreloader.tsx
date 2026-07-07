@@ -15,7 +15,6 @@ import { isLandingRoute } from "@/lib/landingRoutes";
 import useAllWorkspaces from "@/plugins/comet/useAllWorkspaces";
 import useAppStore, { useSetAppUser } from "@/store/AppStore";
 import { usePostHog } from "posthog-js/react";
-import Logo from "@/shared/Logo/Logo";
 import { identifyReoUser } from "./analytics/reo";
 import useSegment from "./analytics/useSegment";
 import { ORGANIZATION_ROLE_TYPE, Organization, Workspace } from "./types";
@@ -195,9 +194,7 @@ const WorkspacePreloader: React.FunctionComponent<WorkspacePreloaderProps> = ({
               to="/$workspaceName"
               className="absolute left-[18px] z-10 block"
               params={{ workspaceName: defaultWorkspace.workspaceName }}
-            >
-              <Logo expanded />
-            </Link>
+            />
           </nav>
 
           <div className="flex flex-col items-center gap-4 px-10 py-24">

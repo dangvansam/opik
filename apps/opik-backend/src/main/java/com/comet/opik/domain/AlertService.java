@@ -20,6 +20,7 @@ import com.comet.opik.domain.filter.FilterStrategy;
 import com.comet.opik.domain.sorting.SortingQueryBuilder;
 import com.comet.opik.infrastructure.auth.RequestContext;
 import com.comet.opik.infrastructure.cache.Cacheable;
+import com.comet.opik.infrastructure.EncryptionUtils;
 import com.comet.opik.utils.RetryUtils;
 import com.fasterxml.uuid.Generators;
 import com.google.inject.ImplementedBy;
@@ -284,9 +285,16 @@ class AlertServiceImpl implements AlertService {
 
         validateNoProjectScopeConflict(alert);
 
+        String resolvedSecretToken = resolveSecretToken(
+                alert.webhook() != null ? alert.webhook().secretToken() : null,
+                existingAlert.webhook() != null ? existingAlert.webhook().secretToken() : null);
+
         alert = alert.toBuilder()
                 .createdBy(existingAlert.createdBy())
                 .createdAt(existingAlert.createdAt())
+                .webhook(alert.webhook() != null
+                        ? alert.webhook().toBuilder().secretToken(resolvedSecretToken).build()
+                        : null)
                 .build();
 
         // Prepare new updated alert with the same ID
@@ -351,7 +359,8 @@ class AlertServiceImpl implements AlertService {
     @Override
     @Cacheable(name = "alert_find_all_per_workspace", key = "$workspaceId +'-'+ $eventTypes", returnType = Alert.class, wrapperType = List.class)
     public List<Alert> findAllByWorkspaceAndEventTypes(String workspaceId, @NonNull Set<AlertEventType> eventTypes) {
-        log.info("Fetching all enabled alerts for workspace '{}', eventTypes '{}'", workspaceId, eventTypes);
+        log.info("Fetching all enabled alerts for workspace '{}', eventTypes '{}'",
+                workspaceId != null ? workspaceId : "ALL (global job)", eventTypes);
         return transactionTemplate.inTransaction(READ_ONLY, handle -> {
             AlertDAO alertDAO = handle.attach(AlertDAO.class);
 
@@ -521,6 +530,21 @@ class AlertServiceImpl implements AlertService {
         if (hasScopeProjectConfig) {
             throw new BadRequestException(
                     "Cannot provide both 'project_id' and a 'scope:project' trigger config. Set 'project_id' only — the system creates the scope config automatically.");
+        }
+    }
+
+    private String resolveSecretToken(String incomingEncrypted, String existingEncrypted) {
+        if (StringUtils.isBlank(incomingEncrypted)) {
+            return incomingEncrypted;
+        }
+        try {
+            String decrypted = EncryptionUtils.decrypt(incomingEncrypted);
+            if (decrypted.contains("*")) {
+                return existingEncrypted;
+            }
+            return incomingEncrypted;
+        } catch (Exception e) {
+            return incomingEncrypted;
         }
     }
 

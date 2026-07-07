@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Service responsible for creating and sending webhook notifications for alerts.
@@ -82,6 +83,9 @@ public class AlertWebhookSender {
                 alert.name(), alert.id(), eventIds.size(), payloads.size());
 
         // Send via WebhookPublisher with data from alert configuration
+        int maxRetries = Optional.ofNullable(alert.webhook().maxRetries())
+                .orElse(config.getWebhook().getMaxRetries());
+
         return webhookPublisher.publishWebhookEvent(
                 eventType,
                 alert,
@@ -91,7 +95,7 @@ public class AlertWebhookSender {
                                 config.getAuthentication().getReactService().url())
                         : workspaceName,
                 payload,
-                config.getWebhook().getMaxRetries())
+                maxRetries)
                 .doOnSuccess(webhookId -> log.info(
                         "Successfully sent webhook for alertName='{}', alertId='{}': webhook_id='{}' ",
                         alert.name(), alert.id(), webhookId))

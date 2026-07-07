@@ -4,6 +4,7 @@ import com.codahale.metrics.annotation.Timed;
 import com.comet.opik.api.Alert;
 import com.comet.opik.api.AlertType;
 import com.comet.opik.api.BatchDelete;
+import com.comet.opik.api.WebhookDeliveryLogPage;
 import com.comet.opik.api.WebhookExamples;
 import com.comet.opik.api.WebhookTestResult;
 import com.comet.opik.api.error.ErrorMessage;
@@ -12,6 +13,7 @@ import com.comet.opik.api.filter.FiltersFactory;
 import com.comet.opik.api.sorting.SortingFactoryAlerts;
 import com.comet.opik.api.sorting.SortingField;
 import com.comet.opik.domain.AlertService;
+import com.comet.opik.domain.alerts.WebhookDeliveryLogDAO;
 import com.comet.opik.infrastructure.auth.RequestContext;
 import com.comet.opik.infrastructure.auth.RequiredPermissions;
 import com.comet.opik.infrastructure.auth.WorkspaceUserPermission;
@@ -52,6 +54,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.comet.opik.api.AlertType.GENERAL;
+import static com.comet.opik.utils.AsyncUtils.setRequestContext;
 
 @Path("/v1/private/alerts")
 @Produces(MediaType.APPLICATION_JSON)
@@ -66,6 +69,7 @@ public class AlertResource {
     private final @NonNull AlertService alertService;
     private final @NonNull SortingFactoryAlerts sortingFactory;
     private final @NonNull FiltersFactory filtersFactory;
+    private final @NonNull WebhookDeliveryLogDAO webhookDeliveryLogDAO;
 
     @POST
     @Operation(operationId = "createAlert", summary = "Create alert", description = "Create alert", responses = {
@@ -236,6 +240,31 @@ public class AlertResource {
         log.info("Got webhook examples on workspace_id '{}', alertType '{}'", workspaceId, alertType);
 
         return Response.ok().entity(examples).build();
+    }
+
+    @GET
+    @Path("/{id}/events")
+    @Operation(operationId = "getAlertEvents", summary = "Get alert delivery events", description = "Get paginated webhook delivery history for an alert", responses = {
+            @ApiResponse(responseCode = "200", description = "Delivery events", content = @Content(schema = @Schema(implementation = WebhookDeliveryLogPage.class)))
+    })
+    public Response getAlertEvents(
+            @PathParam("id") UUID id,
+            @QueryParam("page") @Min(1) @DefaultValue("1") int page,
+            @QueryParam("size") @Min(1) @DefaultValue("20") int size) {
+
+        String workspaceId = requestContext.get().getWorkspaceId();
+
+        log.info("Getting alert events for alert '{}' on workspace_id '{}', page '{}', size '{}'",
+                id, workspaceId, page, size);
+
+        var result = webhookDeliveryLogDAO.findByAlertId(workspaceId, id.toString(), page, size)
+                .contextWrite(ctx -> setRequestContext(ctx, requestContext))
+                .block();
+
+        log.info("Got alert events for alert '{}' on workspace_id '{}', count '{}'",
+                id, workspaceId, result != null ? result.total() : 0);
+
+        return Response.ok().entity(result != null ? result : WebhookDeliveryLogPage.empty(page)).build();
     }
 
 }

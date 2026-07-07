@@ -16,8 +16,8 @@ import org.jdbi.v3.sqlobject.statement.SqlUpdate;
 @RegisterColumnMapper(MapFlatArgumentFactory.class)
 public interface WebhookDAO {
 
-    @SqlUpdate("INSERT INTO webhooks (id, name, url, secret_token, headers, workspace_id, created_by, last_updated_by, created_at) "
+    @SqlUpdate("INSERT INTO webhooks (id, name, url, secret_token, headers, max_retries, retry_delay_ms, workspace_id, created_by, last_updated_by, created_at) "
             +
-            "VALUES (:bean.id, :bean.name, :bean.url, :bean.secretToken, :bean.headers, :workspaceId, :bean.createdBy, :bean.lastUpdatedBy, COALESCE(:bean.createdAt, CURRENT_TIMESTAMP(6)))")
+            "VALUES (:bean.id, :bean.name, :bean.url, :bean.secretToken, :bean.headers, :bean.maxRetries, :bean.retryDelayMs, :workspaceId, :bean.createdBy, :bean.lastUpdatedBy, COALESCE(:bean.createdAt, CURRENT_TIMESTAMP(6)))")
     void save(@Bind("workspaceId") String workspaceId, @BindMethods("bean") Webhook webhook);
 }

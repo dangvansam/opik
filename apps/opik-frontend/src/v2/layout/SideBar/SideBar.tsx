@@ -3,7 +3,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { PanelLeft } from "lucide-react";
 import { useActiveWorkspaceName } from "@/store/AppStore";
 import { Button } from "@/ui/button";
-import Logo from "@/shared/Logo/Logo";
 import TooltipWrapper from "@/shared/TooltipWrapper/TooltipWrapper";
 import { useActiveProjectInitializer } from "@/hooks/useActiveProjectInitializer";
 import ProjectSidebarContent from "@/v2/layout/SideBar/ProjectSidebarContent";
@@ -30,8 +29,6 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
       state.matches.some((match) => "projectId" in match.params),
   });
 
-  const logo = <Logo expanded={expanded} />;
-
   return (
     <aside className="comet-sidebar-width relative h-[calc(100vh-var(--banner-height))] border-r transition-all">
       <div className="comet-header-height relative flex w-full items-center justify-end border-b pr-2">
@@ -40,7 +37,6 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
           className="absolute left-[15px] top-1/2 block -translate-y-1/2"
           params={{ workspaceName }}
         >
-          {logo}
           {canToggle && !expanded && (
             <TooltipWrapper content="Expand sidebar" side="right">
               <Button

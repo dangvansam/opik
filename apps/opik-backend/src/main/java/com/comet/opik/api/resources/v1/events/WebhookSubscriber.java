@@ -1,10 +1,13 @@
 package com.comet.opik.api.resources.v1.events;
 
+import com.comet.opik.api.WebhookDeliveryLog;
 import com.comet.opik.api.events.webhooks.WebhookEvent;
 import com.comet.opik.api.resources.v1.events.webhooks.WebhookHttpClient;
 import com.comet.opik.api.resources.v1.events.webhooks.slack.AlertPayloadAdapter;
+import com.comet.opik.domain.alerts.WebhookDeliveryLogDAO;
 import com.comet.opik.infrastructure.WebhookConfig;
 import com.comet.opik.infrastructure.auth.RequestContext;
+import com.comet.opik.utils.RetryUtils;
 import com.comet.opik.utils.ValidationUtils;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.LongCounter;
@@ -16,6 +19,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import ru.vyarus.dropwizard.guice.module.installer.feature.eager.EagerSingleton;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -32,16 +36,19 @@ public class WebhookSubscriber extends BaseRedisSubscriber<WebhookEvent<?>> {
 
     private final WebhookHttpClient webhookHttpClient;
     private final WebhookConfig webhookConfig;
+    private final WebhookDeliveryLogDAO webhookDeliveryLogDAO;
 
     private final LongCounter webhookEventProcessedCounter;
 
     @Inject
     public WebhookSubscriber(@NonNull WebhookConfig webhookConfig,
             @NonNull RedissonReactiveClient redisson,
-            @NonNull WebhookHttpClient webhookHttpClient) {
+            @NonNull WebhookHttpClient webhookHttpClient,
+            @NonNull WebhookDeliveryLogDAO webhookDeliveryLogDAO) {
         super(webhookConfig, redisson, WebhookConfig.PAYLOAD_FIELD, METRICS_NAMESPACE, METRICS_BASE_NAME);
         this.webhookHttpClient = webhookHttpClient;
         this.webhookConfig = webhookConfig;
+        this.webhookDeliveryLogDAO = webhookDeliveryLogDAO;
 
         // Pre-build metrics during initialization
         this.webhookEventProcessedCounter = meter
@@ -66,17 +73,23 @@ public class WebhookSubscriber extends BaseRedisSubscriber<WebhookEvent<?>> {
 
                             return Mono.fromCallable(() -> AlertPayloadAdapter.prepareWebhookPayload(webhookEvent))
                                     .subscribeOn(Schedulers.boundedElastic())
-                                    .flatMap(webhookHttpClient::sendWebhook)
-                                    .doOnSuccess(unused -> {
-                                        log.info("Successfully sent webhook: id='{}', type='{}', url='{}'",
-                                                event.getId(), event.getEventType(), event.getUrl());
+                                    .flatMap(preparedEvent -> webhookHttpClient.sendWebhook(preparedEvent)
+                                            .flatMap(result -> {
+                                                log.info("Successfully sent webhook: id='{}', type='{}', url='{}', retries='{}'",
+                                                        event.getId(), event.getEventType(), event.getUrl(),
+                                                        result.retryCount());
 
-                                        // Record success metrics
-                                        webhookEventProcessedCounter.add(1,
-                                                attributes.toBuilder().put("status", "success").build());
-                                    })
-                                    .onErrorResume(
-                                            throwable -> handlePermanentFailure(event, throwable).then(Mono.empty()));
+                                                webhookEventProcessedCounter.add(1,
+                                                        attributes.toBuilder().put("status", "success").build());
+
+                                                return persistDeliveryLog(preparedEvent,
+                                                        WebhookDeliveryLog.DeliveryStatus.SUCCESS,
+                                                        200, "", result.body(), result.retryCount())
+                                                        .then(Mono.just(result));
+                                            })
+                                            .onErrorResume(
+                                                    throwable -> handlePermanentFailure(preparedEvent, throwable)
+                                                            .then(Mono.empty())));
                         }))
                 .onErrorResume(
                         throwable -> handlePermanentFailure(event, throwable).then(Mono.empty()))
@@ -90,10 +103,6 @@ public class WebhookSubscriber extends BaseRedisSubscriber<WebhookEvent<?>> {
                 "Event type: '{}', URL: '{}', Error: '{}'",
                 event.getId(), event.getEventType(), event.getUrl(), throwable.getMessage());
 
-        // TODO: Implement dead letter queue or notification mechanism for permanent failures
-        // For now, we'll just log the failure and continue processing other events
-
-        // Record permanent failure metrics
         var attributes = Attributes.builder()
                 .put("event_type", event.getEventType().getValue())
                 .put("workspace_id", event.getWorkspaceId())
@@ -106,7 +115,43 @@ public class WebhookSubscriber extends BaseRedisSubscriber<WebhookEvent<?>> {
                 .build()
                 .add(1, attributes);
 
-        return Mono.empty();
+        int httpStatusCode = 0;
+        if (throwable instanceof RetryUtils.RetryableHttpException httpException) {
+            httpStatusCode = httpException.getStatusCode();
+        }
+
+        String responseBody = throwable instanceof RetryUtils.RetryableHttpException httpEx
+                ? httpEx.getResponseBody()
+                : null;
+
+        return persistDeliveryLog(event, WebhookDeliveryLog.DeliveryStatus.FAILED,
+                httpStatusCode, throwable.getMessage(), responseBody, event.getMaxRetries());
+    }
+
+    private Mono<Void> persistDeliveryLog(WebhookEvent<?> event, WebhookDeliveryLog.DeliveryStatus status,
+            int httpStatusCode, String errorMessage, String responseBody, int retryCount) {
+        var now = Instant.now();
+        var deliveryLog = WebhookDeliveryLog.builder()
+                .workspaceId(event.getWorkspaceId())
+                .alertId(event.getAlertId().toString())
+                .alertName(event.getAlertName())
+                .eventType(event.getEventType().getValue())
+                .webhookEventId(event.getId())
+                .payloadJson(event.getJsonPayload())
+                .status(status)
+                .httpStatusCode(httpStatusCode)
+                .errorMessage(errorMessage != null ? errorMessage : "")
+                .responseBody(responseBody)
+                .retryCount(retryCount)
+                .maxRetries(event.getMaxRetries())
+                .createdAt(event.getCreatedAt() != null ? event.getCreatedAt() : now)
+                .completedAt(now)
+                .build();
+
+        return webhookDeliveryLogDAO.insert(deliveryLog)
+                .doOnError(e -> log.warn("Failed to persist webhook delivery log for event '{}': {}",
+                        event.getId(), e.getMessage()))
+                .onErrorResume(e -> Mono.empty());
     }
 
     private Mono<Void> validateEvent(@NonNull WebhookEvent<?> event) {

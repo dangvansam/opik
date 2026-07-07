@@ -1,5 +1,6 @@
 package com.comet.opik.api.resources.v1.events;
 
+import com.comet.opik.api.Project;
 import com.comet.opik.api.PromptType;
 import com.comet.opik.api.Source;
 import com.comet.opik.api.Trace;
@@ -11,6 +12,7 @@ import com.comet.opik.api.events.TraceToScoreLlmAsJudge;
 import com.comet.opik.api.events.TraceToScoreUserDefinedMetricPython;
 import com.comet.opik.api.events.TracesCreated;
 import com.comet.opik.api.events.TracesUpdated;
+import com.comet.opik.domain.ProjectService;
 import com.comet.opik.domain.TraceService;
 import com.comet.opik.domain.evaluators.AutomationRuleEvaluatorService;
 import com.comet.opik.domain.evaluators.OnlineScorePublisher;
@@ -57,6 +59,7 @@ public class OnlineScoringSampler {
     private final AutomationRuleEvaluatorService ruleEvaluatorService;
     private final TraceFilterEvaluationService filterEvaluationService;
     private final TraceService traceService;
+    private final ProjectService projectService;
     private final SecureRandom secureRandom;
     private final Logger userFacingLogger;
     private final ServiceTogglesConfig serviceTogglesConfig;
@@ -67,12 +70,14 @@ public class OnlineScoringSampler {
             @NonNull AutomationRuleEvaluatorService ruleEvaluatorService,
             @NonNull TraceFilterEvaluationService filterEvaluationService,
             @NonNull OnlineScorePublisher onlineScorePublisher,
-            @NonNull TraceService traceService) throws NoSuchAlgorithmException {
+            @NonNull TraceService traceService,
+            @NonNull ProjectService projectService) throws NoSuchAlgorithmException {
         this.ruleEvaluatorService = ruleEvaluatorService;
         this.filterEvaluationService = filterEvaluationService;
         this.onlineScorePublisher = onlineScorePublisher;
         this.serviceTogglesConfig = serviceTogglesConfig;
         this.traceService = traceService;
+        this.projectService = projectService;
         secureRandom = SecureRandom.getInstanceStrong();
         userFacingLogger = UserFacingLoggingFactory.getLogger(OnlineScoringSampler.class);
     }
@@ -125,7 +130,39 @@ public class OnlineScoringSampler {
                         .put(RequestContext.USER_NAME, event.userName()))
                 .block();
 
+        if (CollectionUtils.isNotEmpty(traces)) {
+            traces = enrichTracesWithProjectName(traces, event.workspaceId());
+        }
+
         sampleAndScore(traces, event.workspaceId(), event.userName());
+    }
+
+    private List<Trace> enrichTracesWithProjectName(List<Trace> traces, String workspaceId) {
+        Set<UUID> projectIds = traces.stream()
+                .filter(t -> t.projectName() == null && t.projectId() != null)
+                .map(Trace::projectId)
+                .collect(Collectors.toSet());
+
+        if (projectIds.isEmpty()) {
+            return traces;
+        }
+
+        Map<UUID, String> projectNameMap = projectService.findByIds(workspaceId, projectIds)
+                .stream()
+                .collect(Collectors.toMap(Project::id, Project::name));
+
+        return traces.stream()
+                .map(trace -> {
+                    if (trace.projectName() != null) {
+                        return trace;
+                    }
+                    String name = projectNameMap.get(trace.projectId());
+                    if (name == null) {
+                        return trace;
+                    }
+                    return trace.toBuilder().projectName(name).build();
+                })
+                .toList();
     }
 
     private void sampleAndScore(List<Trace> traces, String workspaceId, String userName) {

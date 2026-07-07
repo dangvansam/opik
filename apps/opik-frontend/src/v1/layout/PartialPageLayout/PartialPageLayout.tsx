@@ -2,7 +2,6 @@ import React from "react";
 import useAppStore from "@/store/AppStore";
 import usePluginsStore from "@/store/PluginsStore";
 import { Link, Outlet } from "@tanstack/react-router";
-import Logo from "@/shared/Logo/Logo";
 import AppDebugInfo from "@/v1/layout/AppDebugInfo/AppDebugInfo";
 import SettingsMenu from "@/v1/layout/SettingsMenu/SettingsMenu";
 import LayoutDialogs from "@/v1/layout/LayoutDialogs";
@@ -15,16 +14,12 @@ export const PartialPageLayout = ({
   const UserMenu = usePluginsStore((state) => state.UserMenu);
   const workspaceName = useAppStore((state) => state.activeWorkspaceName);
 
-  const logo = <Logo expanded={false} />;
-
   return (
     <section className="relative flex h-screen min-h-0 w-screen min-w-0 flex-col overflow-hidden">
       <main>
         <nav className="comet-header-height flex w-full items-center justify-between gap-6 border-b pl-4 pr-6">
           <div className="flex-1">
-            <Link to="/$workspaceName/home" params={{ workspaceName }}>
-              {logo}
-            </Link>
+            <Link to="/$workspaceName/home" params={{ workspaceName }} />
           </div>
 
           <AppDebugInfo />

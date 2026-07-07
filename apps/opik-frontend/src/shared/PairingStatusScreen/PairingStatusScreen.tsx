@@ -1,8 +1,4 @@
 import React from "react";
-import { useTheme } from "@/contexts/theme-provider";
-import { THEME_MODE } from "@/constants/theme";
-import opikLogoUrl from "/images/opik-logo.png";
-import opikLogoInvertedUrl from "/images/opik-logo-inverted.png";
 
 export type PairingStatus = "loading" | "success" | "error";
 export type RunnerVariant = "connect" | "endpoint";
@@ -88,18 +84,12 @@ export const PairingStatusScreen: React.FC<PairingStatusScreenProps> = (
   props,
 ) => {
   const { headline, subtitle } = getCopy(props);
-  const { themeMode } = useTheme();
 
   return (
     <main
       aria-label="Pairing status"
       className="flex min-h-screen flex-col items-center justify-center p-6"
     >
-      <img
-        src={themeMode === THEME_MODE.DARK ? opikLogoInvertedUrl : opikLogoUrl}
-        alt="Opik"
-        className="mb-10 h-10"
-      />
       <div className="flex flex-col items-center gap-2">
         <h1 className="comet-title-s text-center">{headline}</h1>
         <p className="comet-body text-center text-muted-slate">{subtitle}</p>

@@ -2,9 +2,11 @@ package com.comet.opik.api.resources.v1.events;
 
 import com.comet.opik.api.AlertEventType;
 import com.comet.opik.api.AlertType;
+import com.comet.opik.api.WebhookDeliveryLog;
 import com.comet.opik.api.events.webhooks.WebhookEvent;
 import com.comet.opik.api.resources.utils.TestHttpClientUtils;
 import com.comet.opik.api.resources.v1.events.webhooks.WebhookHttpClient;
+import com.comet.opik.domain.alerts.WebhookDeliveryLogDAO;
 import com.comet.opik.infrastructure.WebhookConfig;
 import com.comet.opik.infrastructure.log.UserFacingLoggingFactory;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -31,6 +33,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class WebhookSubscriberTest {
@@ -65,7 +68,10 @@ class WebhookSubscriberTest {
             webhookHttpClient = new WebhookHttpClient(TestHttpClientUtils.client(), webhookConfig);
         }
 
-        webhookSubscriber = new WebhookSubscriber(webhookConfig, redisson, webhookHttpClient);
+        WebhookDeliveryLogDAO webhookDeliveryLogDAO = mock(WebhookDeliveryLogDAO.class);
+        when(webhookDeliveryLogDAO.insert(any(WebhookDeliveryLog.class))).thenReturn(reactor.core.publisher.Mono.empty());
+
+        webhookSubscriber = new WebhookSubscriber(webhookConfig, redisson, webhookHttpClient, webhookDeliveryLogDAO);
     }
 
     @AfterEach

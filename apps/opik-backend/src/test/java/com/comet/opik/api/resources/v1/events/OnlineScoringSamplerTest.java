@@ -15,6 +15,7 @@ import com.comet.opik.api.events.TracesUpdated;
 import com.comet.opik.api.filter.Operator;
 import com.comet.opik.api.filter.TraceField;
 import com.comet.opik.api.filter.TraceFilter;
+import com.comet.opik.domain.ProjectService;
 import com.comet.opik.domain.TraceService;
 import com.comet.opik.domain.evaluators.AutomationRuleEvaluatorService;
 import com.comet.opik.domain.evaluators.OnlineScorePublisher;
@@ -76,6 +77,9 @@ class OnlineScoringSamplerTest {
     @Mock
     private TraceService traceService;
 
+    @Mock
+    private ProjectService projectService;
+
     private OnlineScoringSampler onlineScoringSampler;
     private MockedStatic<UserFacingLoggingFactory> mockedFactory;
 
@@ -94,7 +98,8 @@ class OnlineScoringSamplerTest {
                 ruleEvaluatorService,
                 new TraceFilterEvaluationService(),
                 onlineScorePublisher,
-                traceService);
+                traceService,
+                projectService);
 
         projectId = UUID.randomUUID();
         workspaceId = UUID.randomUUID().toString();

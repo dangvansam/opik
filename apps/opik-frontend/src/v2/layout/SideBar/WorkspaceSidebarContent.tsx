@@ -4,7 +4,7 @@ import { Separator } from "@/ui/separator";
 import { calculateWorkspaceName, cn } from "@/lib/utils";
 import usePluginsStore from "@/store/PluginsStore";
 import SidebarMenuItem from "@/v2/layout/SideBar/MenuItem/SidebarMenuItem";
-import GitHubStarListItem from "@/v2/layout/SideBar/GitHubStarListItem/GitHubStarListItem";
+
 import BackToProjectButton from "@/v2/layout/SideBar/BackToProjectButton";
 import { getWorkspaceSidebarMenuItems } from "@/v2/layout/SideBar/helpers/getMenuItems";
 import { usePermissions } from "@/contexts/PermissionsContext";
@@ -68,10 +68,6 @@ const WorkspaceSidebarContent: React.FC<WorkspaceSidebarContentProps> = ({
 
       <div className="shrink-0 pt-2">
         <BackToProjectButton expanded={expanded} />
-        <Separator className={cn("my-2", !expanded && "mx-1 w-auto")} />
-        <ul className={cn("flex flex-col", !expanded && "gap-1")}>
-          <GitHubStarListItem expanded={expanded} />
-        </ul>
       </div>
     </>
   );

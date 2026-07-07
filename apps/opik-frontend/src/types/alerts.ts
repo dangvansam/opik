@@ -51,6 +51,8 @@ export interface Webhook {
   url: string;
   secret_token?: string;
   headers?: Record<string, string>;
+  max_retries?: number;
+  retry_delay_ms?: number;
   created_at?: string;
   created_by?: string;
   last_updated_at?: string;
@@ -90,4 +92,34 @@ export interface WebhookTestResult {
   status_code: number;
   request_body: string;
   error_message?: string;
+}
+
+export enum DELIVERY_STATUS {
+  PENDING = "PENDING",
+  SUCCESS = "SUCCESS",
+  FAILED = "FAILED",
+}
+
+export interface WebhookDeliveryLog {
+  workspace_id: string;
+  alert_id: string;
+  alert_name: string;
+  event_type: string;
+  webhook_event_id: string;
+  payload_json: string;
+  response_body: string;
+  status: DELIVERY_STATUS;
+  http_status_code: number;
+  error_message: string;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+  completed_at: string;
+}
+
+export interface WebhookDeliveryLogPage {
+  page: number;
+  size: number;
+  total: number;
+  content: WebhookDeliveryLog[];
 }

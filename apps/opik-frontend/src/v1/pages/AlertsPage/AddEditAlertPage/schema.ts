@@ -130,6 +130,19 @@ export const AlertFormSchema = z
       .min(1, { message: "Endpoint URL is required" })
       .url({ message: "Please enter a valid URL" }),
     secretToken: z.string().optional(),
+    maxRetries: z.coerce
+      .number()
+      .int()
+      .min(1, { message: "Min 1" })
+      .max(10, { message: "Max 10" })
+      .optional()
+      .or(z.literal("")),
+    retryDelaySeconds: z.coerce
+      .number()
+      .min(0.1, { message: "Min 0.1s" })
+      .max(60, { message: "Max 60s" })
+      .optional()
+      .or(z.literal("")),
     headers: z.array(HeaderSchema).default([]),
     triggers: z.array(TriggerSchema).default([]),
   })

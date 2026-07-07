@@ -144,5 +144,8 @@ public class WebhookConfig implements StreamConfiguration {
         @Valid @JsonProperty
         @MaxDuration(value = 10, unit = TimeUnit.SECONDS)
         private Duration metricsAlertJobLockWaitTimeout = Duration.seconds(1);
+
+        @JsonProperty
+        @Min(1) @Max(200) private int maxTracesInPayload = 50;
     }
 }

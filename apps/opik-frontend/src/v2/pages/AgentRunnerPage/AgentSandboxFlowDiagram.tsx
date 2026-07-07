@@ -15,10 +15,6 @@ import {
 import OllieOwl from "@/icons/ollie-owl.svg?react";
 import CurveRight from "@/icons/sandbox-curve-right.svg?react";
 import CurveLeft from "@/icons/sandbox-curve-left.svg?react";
-import opikLogoUrl from "/images/opik-logo.png";
-import opikLogoInvertedUrl from "/images/opik-logo-inverted.png";
-import { useTheme } from "@/contexts/theme-provider";
-import { THEME_MODE } from "@/constants/theme";
 
 const Tag: React.FC<{
   icon: React.ReactNode;
@@ -40,10 +36,6 @@ const VerticalArrow = () => (
 );
 
 const AgentSandboxFlowDiagram: React.FC = () => {
-  const { themeMode } = useTheme();
-  const logoUrl =
-    themeMode === THEME_MODE.DARK ? opikLogoInvertedUrl : opikLogoUrl;
-
   return (
     <div className="flex items-center">
       {/* Opik card */}
@@ -63,8 +55,6 @@ const AgentSandboxFlowDiagram: React.FC = () => {
         )`,
         }}
       >
-        <img src={logoUrl} alt="Opik" className="mb-2 h-3 w-auto self-start" />
-
         {/* Configure + Input row (equal height) */}
         <div className="flex gap-1.5">
           <div className="flex flex-1 flex-col rounded border border-border bg-background px-2 py-1">

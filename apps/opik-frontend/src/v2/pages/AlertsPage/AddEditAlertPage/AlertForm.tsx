@@ -55,6 +55,10 @@ const AlertForm: React.FunctionComponent<AlertFormProps> = ({ alert }) => {
       routingKey: alert?.metadata?.routing_key || "",
       url: alert?.webhook?.url || "",
       secretToken: alert?.webhook?.secret_token || "",
+      maxRetries: alert?.webhook?.max_retries ?? ("" as unknown as undefined),
+      retryDelaySeconds: alert?.webhook?.retry_delay_ms
+        ? alert.webhook.retry_delay_ms / 1000
+        : ("" as unknown as undefined),
       headers: alert?.webhook?.headers
         ? Object.entries(alert.webhook.headers).map(([key, value]) => ({
             key,
@@ -85,6 +89,15 @@ const AlertForm: React.FunctionComponent<AlertFormProps> = ({ alert }) => {
       webhook: {
         url: formData.url.trim(),
         secret_token: formData.secretToken || undefined,
+        max_retries:
+          formData.maxRetries !== "" && formData.maxRetries != null
+            ? Number(formData.maxRetries)
+            : undefined,
+        retry_delay_ms:
+          formData.retryDelaySeconds !== "" &&
+          formData.retryDelaySeconds != null
+            ? Math.round(Number(formData.retryDelaySeconds) * 1000)
+            : undefined,
         headers:
           formData.headers.length > 0
             ? formData.headers.reduce(

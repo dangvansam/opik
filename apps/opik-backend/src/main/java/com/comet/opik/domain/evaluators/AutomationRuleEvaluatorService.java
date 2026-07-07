@@ -1,6 +1,7 @@
 package com.comet.opik.domain.evaluators;
 
 import com.comet.opik.api.LogCriteria;
+import com.comet.opik.api.OnlineEvaluationRun;
 import com.comet.opik.api.error.EntityAlreadyExistsException;
 import com.comet.opik.api.error.ErrorMessage;
 import com.comet.opik.api.evaluators.AutomationRuleEvaluator;
@@ -90,6 +91,9 @@ public interface AutomationRuleEvaluatorService {
             @NonNull String workspaceId, AutomationRuleEvaluatorType type);
 
     Mono<LogPage> getLogs(LogCriteria criteria);
+
+    Mono<OnlineEvaluationRun.OnlineEvaluationRunPage> getEvaluationRuns(@NonNull UUID ruleId,
+            @NonNull String workspaceId, int page, int size);
 }
 
 @Singleton
@@ -102,6 +106,7 @@ class AutomationRuleEvaluatorServiceImpl implements AutomationRuleEvaluatorServi
     private final @NonNull IdGenerator idGenerator;
     private final @NonNull TransactionTemplate template;
     private final @NonNull AutomationRuleEvaluatorLogsDAO logsDAO;
+    private final @NonNull OnlineEvaluationRunDAO onlineEvaluationRunDAO;
     private final @NonNull OpikConfiguration opikConfiguration;
     private final @NonNull FilterQueryBuilder filterQueryBuilder;
     private final @NonNull AutomationRuleEvaluatorSortingFactory sortingFactory;
@@ -553,6 +558,41 @@ class AutomationRuleEvaluatorServiceImpl implements AutomationRuleEvaluatorServi
                         .total(logs.size())
                         .size(logs.size())
                         .build());
+    }
+
+    @Override
+    public Mono<OnlineEvaluationRun.OnlineEvaluationRunPage> getEvaluationRuns(@NonNull UUID ruleId,
+            @NonNull String workspaceId, int page, int size) {
+        AutomationRuleEvaluator<?, ?> evaluator = findById(ruleId, null, workspaceId);
+
+        Set<UUID> projectIds = evaluator.getProjectIds();
+        if (projectIds == null || projectIds.isEmpty()) {
+            projectIds = Optional.ofNullable(evaluator.getProjectId())
+                    .map(Set::of)
+                    .orElse(Set.of());
+        }
+
+        if (projectIds.isEmpty()) {
+            return Mono.just(OnlineEvaluationRun.OnlineEvaluationRunPage.builder()
+                    .page(page)
+                    .size(0)
+                    .total(0)
+                    .content(List.of())
+                    .build());
+        }
+
+        int offset = (page - 1) * size;
+        Set<UUID> finalProjectIds = projectIds;
+
+        return onlineEvaluationRunDAO.countRuns(workspaceId, finalProjectIds)
+                .flatMap(total -> onlineEvaluationRunDAO.findRuns(workspaceId, finalProjectIds, size, offset)
+                        .collectList()
+                        .map(runs -> OnlineEvaluationRun.OnlineEvaluationRunPage.builder()
+                                .page(page)
+                                .size(runs.size())
+                                .total(total)
+                                .content(runs)
+                                .build()));
     }
 
     private List<AutomationRuleEvaluatorModel<?>> findRulesWithProjects(

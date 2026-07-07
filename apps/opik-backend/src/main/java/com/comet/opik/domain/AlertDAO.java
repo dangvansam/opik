@@ -65,6 +65,8 @@ public interface AlertDAO {
                     w.url as webhook_url,
                     w.secret_token as webhook_secret_token,
                     w.headers as webhook_headers,
+                    w.max_retries as webhook_max_retries,
+                    w.retry_delay_ms as webhook_retry_delay_ms,
                     w.created_at as webhook_created_at,
                     w.created_by as webhook_created_by,
                     w.last_updated_at as webhook_last_updated_at,
@@ -176,6 +178,8 @@ public interface AlertDAO {
                     w.url as webhook_url,
                     w.secret_token as webhook_secret_token,
                     w.headers as webhook_headers,
+                    w.max_retries as webhook_max_retries,
+                    w.retry_delay_ms as webhook_retry_delay_ms,
                     w.created_at as webhook_created_at,
                     w.created_by as webhook_created_by,
                     w.last_updated_at as webhook_last_updated_at,
@@ -295,11 +299,20 @@ public interface AlertDAO {
             Map<String, String> webhookHeaders = MAP_MAPPER.map(rs, "webhook_headers", ctx);
 
             // Build Webhook object
+            Integer maxRetries = rs.getObject("webhook_max_retries") != null
+                    ? rs.getInt("webhook_max_retries")
+                    : null;
+            Integer retryDelayMs = rs.getObject("webhook_retry_delay_ms") != null
+                    ? rs.getInt("webhook_retry_delay_ms")
+                    : null;
+
             Webhook webhook = Webhook.builder()
                     .id(UUID.fromString(rs.getString("webhook_id")))
                     .url(rs.getString("webhook_url"))
                     .secretToken(rs.getString("webhook_secret_token"))
                     .headers(webhookHeaders)
+                    .maxRetries(maxRetries)
+                    .retryDelayMs(retryDelayMs)
                     .createdAt(rs.getTimestamp("webhook_created_at").toInstant())
                     .createdBy(rs.getString("webhook_created_by"))
                     .lastUpdatedAt(rs.getTimestamp("webhook_last_updated_at").toInstant())

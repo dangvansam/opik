@@ -497,6 +497,19 @@ const alertNewRoute = createRoute({
   component: AlertEditPageGuard,
 });
 
+const AlertEventsPageWrapper = lazy(
+  () => import("@/v2/pages/AlertsPage/AlertEventsPageWrapper"),
+);
+
+const alertEventsRoute = createRoute({
+  path: "/$alertId/events",
+  getParentRoute: () => alertsRoute,
+  staticData: {
+    title: "Alert Events",
+  },
+  component: AlertEventsPageWrapper,
+});
+
 const alertEditRoute = createRoute({
   path: "/$alertId",
   getParentRoute: () => alertsRoute,
@@ -644,7 +657,7 @@ const routeTree = rootRoute.addChildren([
             annotationQueuesListRoute,
             annotationQueueDetailsRoute,
           ]),
-          alertsRoute.addChildren([alertNewRoute, alertEditRoute]),
+          alertsRoute.addChildren([alertNewRoute, alertEventsRoute, alertEditRoute]),
         ]),
       ]),
 

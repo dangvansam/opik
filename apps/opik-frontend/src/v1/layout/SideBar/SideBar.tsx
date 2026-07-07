@@ -6,9 +6,9 @@ import { OnChangeFn } from "@/types/shared";
 import { Button } from "@/ui/button";
 import { Separator } from "@/ui/separator";
 import { cn } from "@/lib/utils";
-import Logo from "@/shared/Logo/Logo";
+
 import usePluginsStore from "@/store/PluginsStore";
-import GitHubStarListItem from "@/v1/layout/SideBar/GitHubStarListItem/GitHubStarListItem";
+
 import SupportHubSubMenu from "@/shared/SupportHub/SupportHubSubMenu";
 import SidebarMenuItem, {
   MENU_ITEM_TYPE,
@@ -39,8 +39,6 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
   const SidebarInviteDevButton = usePluginsStore(
     (state) => state.SidebarInviteDevButton,
   );
-
-  const logo = <Logo expanded={expanded} />;
 
   const renderBottomItems = () => {
     const bottomItems = [
@@ -88,9 +86,7 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
           to={HOME_PATH}
           className="absolute left-[18px] z-10 block"
           params={{ workspaceName }}
-        >
-          {logo}
-        </Link>
+        />
       </div>
       <div className="relative flex h-[calc(100%-var(--header-height))]">
         {renderExpandCollapseButton()}
@@ -101,7 +97,6 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
           <div className="flex flex-col gap-3">
             <Separator />
             <ul className="flex flex-col">
-              <GitHubStarListItem expanded={expanded} />
               {renderBottomItems()}
             </ul>
           </div>

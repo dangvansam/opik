@@ -12,6 +12,7 @@ import com.comet.opik.api.resources.utils.TestDropwizardAppExtensionUtils;
 import com.comet.opik.api.resources.utils.WireMockUtils;
 import com.comet.opik.api.resources.v1.events.webhooks.WebhookHttpClient;
 import com.comet.opik.domain.alerts.AlertEventLogsDAO;
+import com.comet.opik.domain.alerts.WebhookDeliveryLogDAO;
 import com.comet.opik.domain.evaluators.UserLog;
 import com.comet.opik.extensions.DropwizardAppExtensionProvider;
 import com.comet.opik.extensions.RegisterApp;
@@ -103,22 +104,20 @@ class WebhookSubscriberLoggingTest {
 
     @BeforeAll
     void setUpAll(
-            ConnectionFactory connectionFactory, RedissonReactiveClient redissonReactiveClient, Client httpClient) {
-        // Get real dependencies via parameter injection
+            ConnectionFactory connectionFactory, RedissonReactiveClient redissonReactiveClient, Client httpClient,
+            WebhookDeliveryLogDAO webhookDeliveryLogDAO) {
         var userLogTableFactory = UserLogTableFactory.getInstance(connectionFactory);
         alertEventLogsDAO = (AlertEventLogsDAO) userLogTableFactory
                 .getDAO(UserLog.ALERT_EVENT);
 
-        // Set up external webhook server
         setupWireMock();
 
         webhookConfig = createWebhookConfig();
 
-        // Create real WebhookHttpClient
         webhookHttpClient = new WebhookHttpClient(httpClient, webhookConfig);
 
-        // Create real WebhookSubscriber
-        webhookSubscriber = new WebhookSubscriber(webhookConfig, redissonReactiveClient, webhookHttpClient);
+        webhookSubscriber = new WebhookSubscriber(webhookConfig, redissonReactiveClient, webhookHttpClient,
+                webhookDeliveryLogDAO);
     }
 
     private void setupWireMock() {

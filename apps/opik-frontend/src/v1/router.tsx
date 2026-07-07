@@ -529,6 +529,19 @@ const alertEditRoute = createRoute({
   component: AlertEditPageGuard,
 });
 
+const AlertEventsPageWrapper = lazy(
+  () => import("@/v1/pages/AlertsPage/AlertEventsPageWrapper"),
+);
+
+const alertEventsRoute = createRoute({
+  path: "/$alertId/events",
+  getParentRoute: () => alertsRoute,
+  staticData: {
+    title: "Alert Events",
+  },
+  component: AlertEventsPageWrapper,
+});
+
 // --------- production
 
 const onlineEvaluationRoute = createRoute({
@@ -616,7 +629,7 @@ const routeTree = rootRoute.addChildren([
       ]),
       playgroundRoute.addChildren([playgroundIndexRoute]),
       configurationRoute,
-      alertsRoute.addChildren([alertNewRoute, alertEditRoute]),
+      alertsRoute.addChildren([alertNewRoute, alertEventsRoute, alertEditRoute]),
       onlineEvaluationRoute,
       annotationQueuesRoute.addChildren([
         annotationQueuesListRoute,

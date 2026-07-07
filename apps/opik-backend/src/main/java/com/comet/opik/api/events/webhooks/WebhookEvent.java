@@ -57,6 +57,8 @@ public class WebhookEvent<T> {
     @Builder.Default
     @Min(1) @Max(10) private int maxRetries = 3;
 
+    private Integer initialRetryDelayMs;
+
     @NotBlank @URL
     private String url;
 

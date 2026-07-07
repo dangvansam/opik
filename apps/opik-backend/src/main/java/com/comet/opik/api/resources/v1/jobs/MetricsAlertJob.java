@@ -5,12 +5,14 @@ import com.comet.opik.api.AlertEventType;
 import com.comet.opik.api.AlertTrigger;
 import com.comet.opik.api.AlertTriggerConfigType;
 import com.comet.opik.api.Project;
+import com.comet.opik.api.events.webhooks.AlertTraceInfo;
 import com.comet.opik.api.events.webhooks.MetricsAlertPayload;
 import com.comet.opik.domain.AlertService;
 import com.comet.opik.domain.EntityType;
 import com.comet.opik.domain.IdGenerator;
 import com.comet.opik.domain.ProjectMetricsDAO;
 import com.comet.opik.domain.ProjectService;
+import com.comet.opik.domain.alerts.AlertFireTracker;
 import com.comet.opik.domain.alerts.AlertScopeUtils;
 import com.comet.opik.domain.alerts.AlertWebhookSender;
 import com.comet.opik.infrastructure.WebhookConfig;
@@ -84,6 +86,7 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
 
     private final @NonNull WebhookConfig webhookConfig;
     private final @NonNull LockService lockService;
+    private final @NonNull AlertFireTracker fireTracker;
     private final @NonNull AlertService alertService;
     private final @NonNull ProjectMetricsDAO projectMetricsDAO;
     private final @NonNull ProjectService projectService;
@@ -98,6 +101,7 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
     @Inject
     public MetricsAlertJob(@NonNull @Config WebhookConfig webhookConfig,
             @NonNull LockService lockService,
+            @NonNull AlertFireTracker fireTracker,
             @NonNull AlertService alertService,
             @NonNull ProjectMetricsDAO projectMetricsDAO,
             @NonNull ProjectService projectService,
@@ -105,6 +109,7 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
             @NonNull AlertWebhookSender alertWebhookSender) {
         this.webhookConfig = webhookConfig;
         this.lockService = lockService;
+        this.fireTracker = fireTracker;
         this.alertService = alertService;
         this.projectMetricsDAO = projectMetricsDAO;
         this.projectService = projectService;
@@ -135,8 +140,11 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
             log.info("Metrics alert job interrupted before start");
             return;
         }
-        log.debug("Starting metrics alert job");
+        log.debug("Starting metrics alert job - fetching all enabled alerts across all workspaces");
 
+        // Pass null workspaceId to fetch alerts across all workspaces.
+        // Each alert carries its own workspaceId and is processed with the correct workspace context
+        // via contextWrite in processAlert/evaluateSingleConfig.
         Mono.fromCallable(() -> alertService.findAllByWorkspaceAndEventTypes(null,
                 SUPPORTED_EVENT_TYPES))
                 .subscribeOn(Schedulers.boundedElastic())
@@ -164,38 +172,13 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
             log.info("Skipping alert '{}' due to job interruption", alert.id());
             return Mono.empty();
         }
-        // Create a unique lock key for this alert to prevent duplicate firing across instances
-        LockService.Lock alertLock = new LockService.Lock("metrics_alert:fired:" + alert.id());
+        log.debug("Evaluating metrics alert '{}' (id: '{}')", alert.name(), alert.id());
 
-        // Calculate lock duration: job interval - 1 minute to ensure it expires before the next job run
-        // This allows alerts to fire on every job run instead of every other run
-        Duration jobInterval = webhookConfig.getMetrics().getFixedDelay().toJavaDuration();
-        Duration lockDuration = jobInterval.toMinutes() > 1
-                ? jobInterval.minusMinutes(1)
-                : jobInterval.minusSeconds(jobInterval.getSeconds() / 2);
-
-        // Try to acquire the lock - if successful, this instance will process the alert
-        // If lock already exists, another instance recently fired this alert, so skip it
-        return lockService.lockUsingToken(alertLock, lockDuration)
-                .flatMap(lockAcquired -> {
-                    if (Boolean.FALSE.equals(lockAcquired)) {
-                        // Lock already exists - alert was recently fired by another instance
-                        log.debug(
-                                "Skipping alert '{}' (id: '{}') - already fired by another instance recently",
-                                alert.name(), alert.id());
-                        return Mono.<Void>empty();
-                    }
-
-                    // Lock acquired - this instance will process the alert
-                    log.debug("Evaluating metrics alert '{}' (id: '{}')", alert.name(), alert.id());
-
-                    // Process each trigger in the alert
-                    return Flux.fromIterable(alert.triggers())
-                            .filter(trigger -> SUPPORTED_EVENT_TYPES.contains(trigger.eventType()))
-                            .flatMap(trigger -> evaluateTrigger(alert, trigger).contextWrite(
-                                    ctx -> ctx.put(RequestContext.WORKSPACE_ID, alert.workspaceId())))
-                            .then();
-                })
+        return Flux.fromIterable(alert.triggers())
+                .filter(trigger -> SUPPORTED_EVENT_TYPES.contains(trigger.eventType()))
+                .flatMap(trigger -> evaluateTrigger(alert, trigger).contextWrite(
+                        ctx -> ctx.put(RequestContext.WORKSPACE_ID, alert.workspaceId())))
+                .then()
                 .onErrorResume(error -> {
                     alertsErrors.add(1);
                     log.error("Failed to process alert '{}' (id: '{}'): {}",
@@ -234,9 +217,24 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
                 alert.name(), alert.id(), trigger.eventType(), config.name(), config.operator(), config.threshold(),
                 config.windowSeconds());
 
-        // Calculate time window for query
+        LockService.Lock evalLock = new LockService.Lock("metrics_alert:eval_lock:" + alert.id());
+        return lockService.lockUsingToken(evalLock, Duration.ofSeconds(5))
+                .flatMap(acquired -> {
+                    if (Boolean.FALSE.equals(acquired)) {
+                        log.debug("Skipping alert '{}' config '{}' - concurrent evaluation in progress",
+                                alert.name(), config.name());
+                        return Mono.<Void>empty();
+                    }
+                    return doEvaluateSingleConfig(alert, trigger, config);
+                });
+    }
+
+    private Mono<Void> doEvaluateSingleConfig(Alert alert, AlertTrigger trigger, TriggerConfig config) {
+        String fireKey = fireTracker.key(alert.id(), trigger.eventType(), config.name());
+
         Instant endTime = Instant.now();
-        Instant startTime = endTime.minusSeconds(config.windowSeconds());
+        return fireTracker.getLastFireAt(fireKey).flatMap(lastFireAt -> {
+            Instant startTime = lastFireAt.orElse(endTime.minusSeconds(config.windowSeconds()));
 
         // Query metrics based on trigger type - this needs to happen with context already set
         Mono<BigDecimal> metricValueMono = switch (trigger.eventType()) {
@@ -289,63 +287,101 @@ public class MetricsAlertJob extends Job implements InterruptableJob {
                     return Mono.empty();
                 }))
                 .flatMap(metricValue -> {
-                    // Compare with threshold
-                    if (compareMetric(metricValue, thresholdForComparison, config.operator())) {
-                        log.info("Alert '{}' (id: '{}') triggered: {} = '{}', threshold = '{}', name: '{}'",
+                    if (!compareMetric(metricValue, thresholdForComparison, config.operator())) {
+                        alertsSkipped.add(1);
+                        log.debug("Alert '{}' (id: '{}') not triggered: {} = '{}', threshold = '{}', name: '{}'",
                                 alert.name(), alert.id(), trigger.eventType(), metricValue, thresholdForComparison,
                                 config.name());
-
-                        alertsFired.add(1);
-                        var metricValueFinal = trigger.eventType() == AlertEventType.TRACE_LATENCY
-                                ? metricValue.divide(MILLISECONDS_PER_SECOND, 9, RoundingMode.HALF_UP) // Convert back to seconds for payload
-                                : metricValue;
-
-                        // Wrap blocking JSON serialization in Mono.fromCallable
-                        return Mono.fromCallable(() -> {
-                            String eventId = idGenerator.generateId().toString();
-
-                            // Create MetricsAlertPayload DTO
-                            var metricsPayload = MetricsAlertPayload.builder()
-                                    .eventType(trigger.eventType().name())
-                                    .metricName(trigger.eventType().getValue())
-                                    .metricValue(NumberUtils.formatDecimal(metricValueFinal))
-                                    .threshold(NumberUtils.formatDecimal(config.threshold()))
-                                    .windowSeconds(config.windowSeconds())
-                                    .feedbackScoreName(config.name())
-                                    .projectIds(config.projectIds() != null
-                                            ? config.projectIds().stream().map(UUID::toString)
-                                                    .collect(Collectors.joining(","))
-                                            : "")
-                                    .projectNames(config.projectIds() != null
-                                            ? projectService
-                                                    .findByIds(alert.workspaceId(), Set.copyOf(config.projectIds()))
-                                                    .stream()
-                                                    .map(Project::name)
-                                                    .collect(Collectors.joining(","))
-                                            : "")
-                                    .build();
-
-                            String payloadJson = JsonUtils.writeValueAsString(metricsPayload);
-                            return Tuples.of(eventId, payloadJson);
-                        })
-                                .flatMap(payload -> alertWebhookSender.createAndSendWebhook(
-                                        alert,
-                                        alert.workspaceId(),
-                                        "",
-                                        trigger.eventType(),
-                                        List.of(payload.getT1()),
-                                        List.of(payload.getT2()),
-                                        List.of("system"))); // System user for automated alerts
+                        return Mono.<Void>empty();
                     }
 
-                    alertsSkipped.add(1);
-                    log.debug("Alert '{}' (id: '{}') not triggered: {} = '{}', threshold = '{}', name: '{}'",
-                            alert.name(), alert.id(), trigger.eventType(), metricValue, thresholdForComparison,
-                            config.name());
-                    return Mono.<Void>empty();
+                    boolean isFeedbackScore = trigger.eventType() == AlertEventType.TRACE_FEEDBACK_SCORE
+                            || trigger.eventType() == AlertEventType.TRACE_THREAD_FEEDBACK_SCORE;
+
+                    Mono<List<AlertTraceInfo>> tracesMono = isFeedbackScore
+                            ? projectMetricsDAO.getTracesForFeedbackScoreAlert(
+                                    config.projectIds(), startTime, endTime,
+                                    trigger.eventType() == AlertEventType.TRACE_FEEDBACK_SCORE
+                                            ? EntityType.TRACE
+                                            : EntityType.THREAD,
+                                    config.name(),
+                                    webhookConfig.getMetrics().getMaxTracesInPayload(),
+                                    config.operator().getValue(), config.threshold())
+                            : Mono.just(List.of());
+
+                    return tracesMono.flatMap(traces -> {
+                        if (isFeedbackScore && traces.isEmpty()) {
+                            alertsSkipped.add(1);
+                            log.info(
+                                    "Alert '{}' (id: '{}') skipped: threshold breached but no new traces since last fire, name: '{}'",
+                                    alert.name(), alert.id(), config.name());
+                            return Mono.<Void>empty();
+                        }
+
+                        var metricValueFinal = trigger.eventType() == AlertEventType.TRACE_LATENCY
+                                ? metricValue.divide(MILLISECONDS_PER_SECOND, 9, RoundingMode.HALF_UP)
+                                : metricValue;
+
+                        String projectIdsStr = config.projectIds() != null
+                                ? config.projectIds().stream().map(UUID::toString)
+                                        .collect(Collectors.joining(","))
+                                : "";
+                        String projectNamesStr = config.projectIds() != null
+                                ? projectService
+                                        .findByIds(alert.workspaceId(), Set.copyOf(config.projectIds()))
+                                        .stream()
+                                        .map(Project::name)
+                                        .collect(Collectors.joining(","))
+                                : "";
+
+                        List<AlertTraceInfo> traceList = traces.isEmpty()
+                                ? List.of((AlertTraceInfo) null)
+                                : traces;
+
+                        return Flux.fromIterable(traceList)
+                                .concatMap(trace -> {
+                                    alertsFired.add(1);
+                                    log.info("Alert '{}' (id: '{}') triggered for trace '{}': {} = '{}', threshold = '{}', name: '{}'",
+                                            alert.name(), alert.id(),
+                                            trace != null ? trace.traceId() : "N/A",
+                                            trigger.eventType(), metricValue, thresholdForComparison,
+                                            config.name());
+
+                                    return Mono.fromCallable(() -> {
+                                        String eventId = idGenerator.generateId().toString();
+
+                                        var payloadBuilder = MetricsAlertPayload.builder()
+                                                .eventType(trigger.eventType().name())
+                                                .metricName(trigger.eventType().getValue())
+                                                .metricValue(NumberUtils.formatDecimal(metricValueFinal))
+                                                .threshold(NumberUtils.formatDecimal(config.threshold()))
+                                                .windowSeconds(config.windowSeconds())
+                                                .feedbackScoreName(config.name())
+                                                .projectIds(projectIdsStr)
+                                                .projectNames(projectNamesStr);
+
+                                        if (trace != null) {
+                                            payloadBuilder.traces(List.of(trace));
+                                        }
+
+                                        String payloadJson = JsonUtils.writeValueAsString(payloadBuilder.build());
+                                        return Tuples.of(eventId, payloadJson);
+                                    })
+                                            .flatMap(payload -> alertWebhookSender.createAndSendWebhook(
+                                                    alert,
+                                                    alert.workspaceId(),
+                                                    "",
+                                                    trigger.eventType(),
+                                                    List.of(payload.getT1()),
+                                                    List.of(payload.getT2()),
+                                                    List.of("system")));
+                                })
+                                .then(fireTracker.setLastFireAt(fireKey, endTime));
+                    });
                 })
                 .contextWrite(context -> AsyncUtils.setRequestContext(context, "system", alert.workspaceId()))
                 .subscribeOn(Schedulers.boundedElastic());
+        });
     }
 
     private boolean compareMetric(BigDecimal metricValue, BigDecimal threshold, Operator operator) {

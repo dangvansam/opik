@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Path, useFieldArray, UseFormReturn } from "react-hook-form";
-import { CircleHelp, ExternalLink, Plus, WebhookIcon, X } from "lucide-react";
+import { Plus, WebhookIcon, X } from "lucide-react";
 import get from "lodash/get";
 
 import { Label } from "@/ui/label";
@@ -262,27 +262,6 @@ const EventTriggers: React.FunctionComponent<EventTriggersProps> = ({
                 })}
               </div>
 
-              <Separator />
-
-              <div className="flex min-w-[200px] items-center gap-2 rounded px-4 py-2.5">
-                <CircleHelp className="size-4 shrink-0 text-muted-foreground" />
-                <div className="flex flex-wrap items-center gap-1 text-sm">
-                  <span className="comet-body-s">
-                    Missing a trigger? Open a
-                  </span>
-                  <a
-                    href="https://github.com/comet-ml/opik/issues/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span className="comet-body-s">GitHub ticket</span>
-                    <ExternalLink className="size-3.5" />
-                  </a>
-                  <span className="comet-body-s">to let us know!</span>
-                </div>
-              </div>
             </div>
           </PopoverContent>
         </Popover>

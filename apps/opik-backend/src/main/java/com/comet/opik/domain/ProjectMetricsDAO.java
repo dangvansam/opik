@@ -2,6 +2,7 @@ package com.comet.opik.domain;
 
 import com.comet.opik.api.InstantToUUIDMapper;
 import com.comet.opik.api.TimeInterval;
+import com.comet.opik.api.events.webhooks.AlertTraceInfo;
 import com.comet.opik.api.metrics.BreakdownField;
 import com.comet.opik.api.metrics.BreakdownQueryBuilder;
 import com.comet.opik.api.metrics.MetricType;
@@ -10,7 +11,9 @@ import com.comet.opik.domain.filter.FilterQueryBuilder;
 import com.comet.opik.domain.filter.FilterStrategy;
 import com.comet.opik.infrastructure.db.TransactionTemplateAsync;
 import com.comet.opik.infrastructure.instrumentation.InstrumentAsyncUtils;
+import com.comet.opik.utils.JsonUtils;
 import com.comet.opik.utils.RowUtils;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.inject.ImplementedBy;
 import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.Result;
@@ -22,6 +25,7 @@ import lombok.Builder;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -116,6 +120,11 @@ public interface ProjectMetricsDAO {
 
     Mono<BigDecimal> getAverageFeedbackScore(List<UUID> projectIds, Instant startTime, Instant endTime,
             EntityType entityType, String feedbackScoreName);
+
+    Mono<List<AlertTraceInfo>> getTracesForFeedbackScoreAlert(
+            List<UUID> projectIds, Instant startTime, Instant endTime,
+            EntityType entityType, String feedbackScoreName, int maxTraces,
+            String operator, java.math.BigDecimal threshold);
 
     Mono<List<Entry>> getSpanDuration(UUID projectId, ProjectMetricRequest request);
 
@@ -1092,6 +1101,33 @@ class ProjectMetricsDAOImpl implements ProjectMetricsDAO {
             SETTINGS log_comment = '<log_comment>';
             """;
 
+    private static final String GET_TRACES_FOR_FEEDBACK_SCORE_ALERT = """
+            SELECT
+                fs.entity_id AS trace_id,
+                t.name AS trace_name,
+                fs.project_id AS project_id,
+                fs.value AS feedback_score_value,
+                t.input AS input,
+                t.output AS output,
+                t.metadata AS metadata
+            FROM authored_feedback_scores fs FINAL
+            INNER JOIN traces t FINAL
+                ON fs.entity_id = t.id
+                AND fs.workspace_id = t.workspace_id
+                AND fs.project_id = t.project_id
+            WHERE fs.workspace_id = :workspace_id
+                AND fs.entity_type = :entity_type
+                AND fs.name = :feedback_score_name
+                AND fs.created_at >= parseDateTime64BestEffort(:start_time, 9)
+                AND fs.created_at \\<= parseDateTime64BestEffort(:end_time, 9)
+                <if(project_ids)> AND fs.project_id IN :project_ids <endif>
+                <if(filter_gt)> AND fs.value > :threshold <endif>
+                <if(filter_lt)> AND fs.value \\< :threshold <endif>
+            ORDER BY fs.created_at DESC
+            LIMIT :max_traces
+            SETTINGS log_comment = '<log_comment>';
+            """;
+
     private static final String GET_THREAD_COUNT = """
             %s
             SELECT <bucket> AS bucket,
@@ -1509,6 +1545,76 @@ class ProjectMetricsDAOImpl implements ProjectMetricsDAO {
                     .mapNotNull(opt -> opt.orElse(null))
                     .doFinally(signalType -> endSegment(segment));
         }));
+    }
+
+    @Override
+    public Mono<List<AlertTraceInfo>> getTracesForFeedbackScoreAlert(
+            List<UUID> projectIds, @NonNull Instant startTime, Instant endTime,
+            EntityType entityType, String feedbackScoreName, int maxTraces,
+            String operator, BigDecimal threshold) {
+        return template.nonTransaction(connection -> makeMonoContextAware((userName, workspaceId) -> {
+            var stTemplate = getSTWithLogComment(GET_TRACES_FOR_FEEDBACK_SCORE_ALERT,
+                    "get_traces_for_feedback_score_alert", workspaceId, userName, feedbackScoreName);
+
+            if (projectIds != null && !projectIds.isEmpty()) {
+                stTemplate.add("project_ids", true);
+            }
+
+            if (">".equals(operator)) {
+                stTemplate.add("filter_gt", true);
+            } else if ("<".equals(operator)) {
+                stTemplate.add("filter_lt", true);
+            }
+
+            var statement = connection.createStatement(stTemplate.render())
+                    .bind("start_time", startTime.toString())
+                    .bind("end_time", endTime.toString())
+                    .bind("entity_type", entityType.getType())
+                    .bind("feedback_score_name", feedbackScoreName)
+                    .bind("workspace_id", workspaceId)
+                    .bind("max_traces", maxTraces);
+
+            if (projectIds != null && !projectIds.isEmpty()) {
+                statement.bind("project_ids", projectIds.toArray(new UUID[0]));
+            }
+
+            if (threshold != null && (">".equals(operator) || "<".equals(operator))) {
+                statement.bind("threshold", threshold);
+            }
+
+            InstrumentAsyncUtils.Segment segment = startSegment("getTracesForFeedbackScoreAlert", "Clickhouse", "get");
+
+            return Mono.from(statement.execute())
+                    .flatMapMany(result -> result.map((row, metadata) -> {
+                        String traceId = row.get("trace_id", String.class);
+                        JsonNode inputNode = parseJsonNode(row.get("input", String.class), traceId, "input");
+                        JsonNode outputNode = parseJsonNode(row.get("output", String.class), traceId, "output");
+                        JsonNode metadataNode = parseJsonNode(row.get("metadata", String.class), traceId, "metadata");
+                        return AlertTraceInfo.builder()
+                                .traceId(traceId)
+                                .traceName(row.get("trace_name", String.class))
+                                .projectId(row.get("project_id", String.class))
+                                .feedbackScoreValue(row.get("feedback_score_value", BigDecimal.class))
+                                .input(inputNode)
+                                .output(outputNode)
+                                .metadata(metadataNode)
+                                .build();
+                    }))
+                    .collectList()
+                    .doFinally(signalType -> endSegment(segment));
+        }));
+    }
+
+    private JsonNode parseJsonNode(String value, String traceId, String field) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return JsonUtils.getJsonNodeFromString(value);
+        } catch (Exception e) {
+            log.warn("Failed to parse trace {} for trace_id='{}': {}", field, traceId, e.getMessage());
+            return null;
+        }
     }
 
     @Override

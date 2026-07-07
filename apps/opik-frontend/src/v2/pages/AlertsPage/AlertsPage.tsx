@@ -3,7 +3,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import useLocalStorageState from "use-local-storage-state";
 import { JsonParam, StringParam, useQueryParam } from "use-query-params";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 import PageEmptyState from "@/shared/PageEmptyState/PageEmptyState";
 import { buildDocsUrl } from "@/v2/lib/utils";
@@ -48,6 +48,7 @@ import AlertsActionsPanel from "@/v2/pages/AlertsPage/AlertsActionsPanel";
 import { EXPLAINER_ID, EXPLAINERS_MAP } from "@/v2/constants/explainers";
 import ExplainerDescription from "@/shared/ExplainerDescription/ExplainerDescription";
 import { usePermissions } from "@/contexts/PermissionsContext";
+import AlertEventsPage from "@/v2/pages/AlertsPage/AlertEventsPage";
 
 export const getRowId = (a: Alert) => a.id!;
 
@@ -320,6 +321,13 @@ const AlertsPage: React.FunctionComponent = () => {
     [sortedColumns, setSortedColumns],
   );
 
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+
+  const handleRowClick = useCallback((alert: Alert) => {
+    if (!alert.id) return;
+    setSelectedAlert(alert);
+  }, []);
+
   const handleNewAlertClick = useCallback(() => {
     navigate({
       to: "/$workspaceName/projects/$projectId/alerts/new",
@@ -331,6 +339,18 @@ const AlertsPage: React.FunctionComponent = () => {
   const isTableLoading =
     isPending || (isPlaceholderData && alerts.length === 0);
   const isEmpty = !isTableLoading && noData && alerts.length === 0;
+
+  if (selectedAlert) {
+    return (
+      <div className="flex min-h-full flex-col pt-4">
+        <AlertEventsPage
+          alertId={selectedAlert.id!}
+          alertName={selectedAlert.name}
+          onBack={() => setSelectedAlert(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-full flex-col pt-4">
@@ -425,6 +445,7 @@ const AlertsPage: React.FunctionComponent = () => {
               showLoadingOverlay={
                 !isTableLoading && isPlaceholderData && isFetching
               }
+              onRowClick={handleRowClick}
             />
             <div className="py-4">
               <DataTablePagination

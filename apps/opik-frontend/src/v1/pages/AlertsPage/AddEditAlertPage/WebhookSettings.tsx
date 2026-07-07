@@ -121,7 +121,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ form }) => {
                   ]);
                   return (
                     <FormItem>
-                      <Label>Secret token (optional)</Label>
+                      <Label>Bearer Token (optional)</Label>
                       <FormControl>
                         <EyeInput
                           className={cn({
@@ -135,8 +135,8 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ form }) => {
                       </FormControl>
                       <FormMessage />
                       <Description>
-                        Add to securely verify that incoming webhook requests
-                        come from the platform.
+                        Sent as Authorization: Bearer &lt;token&gt; header
+                        with each webhook request.
                       </Description>
                     </FormItem>
                   );
@@ -144,6 +144,75 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({ form }) => {
               />
 
               <WebhookHeaders form={form} />
+
+              <div className="flex gap-4">
+                <FormField
+                  control={form.control}
+                  name="maxRetries"
+                  render={({ field, formState }) => {
+                    const validationErrors = get(formState.errors, [
+                      "maxRetries",
+                    ]);
+                    return (
+                      <FormItem className="flex-1">
+                        <Label>Max retries (optional)</Label>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className={cn({
+                              "border-destructive": Boolean(
+                                validationErrors?.message,
+                              ),
+                            })}
+                            placeholder="Default: 3"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        <Description>
+                          Number of retry attempts (1-10). Overrides global
+                          default.
+                        </Description>
+                      </FormItem>
+                    );
+                  }}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="retryDelaySeconds"
+                  render={({ field, formState }) => {
+                    const validationErrors = get(formState.errors, [
+                      "retryDelaySeconds",
+                    ]);
+                    return (
+                      <FormItem className="flex-1">
+                        <Label>Retry delay (optional)</Label>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            className={cn({
+                              "border-destructive": Boolean(
+                                validationErrors?.message,
+                              ),
+                            })}
+                            placeholder="Default: 0.5s"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        <Description>
+                          Initial delay between retries in seconds. Overrides
+                          global default.
+                        </Description>
+                      </FormItem>
+                    );
+                  }}
+                />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

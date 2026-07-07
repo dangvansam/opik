@@ -50,12 +50,13 @@ import emptyOnlineEvalDarkUrl from "/images/empty-online-eval-dark.svg";
 import AddEditRuleDialog from "@/v2/pages-shared/automations/AddEditRuleDialog/AddEditRuleDialog";
 import RulesActionsPanel from "@/v2/pages-shared/automations/RulesActionsPanel";
 import RuleRowActionsCell from "@/v2/pages-shared/automations/RuleRowActionsCell";
-import RuleLogsCell from "@/v2/pages-shared/automations/RuleLogsCell";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import { getUIRuleScope } from "@/v2/pages-shared/automations/AddEditRuleDialog/helpers";
 import { usePermissions } from "@/contexts/PermissionsContext";
 
 import { useActiveProjectId } from "@/store/AppStore";
+import RunsTab from "@/v2/pages/AutomationLogsPage/RunsTab";
+import { ArrowLeft } from "lucide-react";
 
 const getRowId = (d: EvaluatorsRule) => d.id;
 
@@ -289,15 +290,6 @@ export const OnlineEvaluationPage: React.FC = () => {
           sortableColumns: sortableBy,
         },
       ),
-      {
-        accessorKey: "rule_logs",
-        header: "",
-        cell: RuleLogsCell,
-        size: 110,
-        enableResizing: false,
-        enableHiding: false,
-        enableSorting: false,
-      } as ColumnDef<EvaluatorsRule>,
       ...(canUpdateOnlineEvaluationRules
         ? [
             generateActionsColumDef<EvaluatorsRule>({
@@ -340,6 +332,12 @@ export const OnlineEvaluationPage: React.FC = () => {
     [sortedColumns, setSortedColumns],
   );
 
+  const [selectedRule, setSelectedRule] = useState<EvaluatorsRule | null>(null);
+
+  const handleRowClick = useCallback((rule: EvaluatorsRule) => {
+    setSelectedRule(rule);
+  }, []);
+
   const handleNewRuleClick = useCallback(() => {
     setOpenDialogForCreate(true);
     resetDialogKeyRef.current = resetDialogKeyRef.current + 1;
@@ -358,6 +356,26 @@ export const OnlineEvaluationPage: React.FC = () => {
 
   const isTableLoading = isPending || (isPlaceholderData && rows.length === 0);
   const isEmpty = !isTableLoading && noData && rows.length === 0 && page === 1;
+
+  if (selectedRule) {
+    return (
+      <div className="flex min-h-full flex-col pt-4">
+        <div className="mb-4 flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setSelectedRule(null)}
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <h1 className="comet-body-accented truncate break-words">
+            {selectedRule.name} — Evaluation Runs
+          </h1>
+        </div>
+        <RunsTab ruleId={selectedRule.id} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-full flex-col pt-4">
@@ -434,6 +452,7 @@ export const OnlineEvaluationPage: React.FC = () => {
             showLoadingOverlay={
               !isTableLoading && isPlaceholderData && isFetching
             }
+            onRowClick={handleRowClick}
           />
           <div className="py-4">
             <DataTablePagination

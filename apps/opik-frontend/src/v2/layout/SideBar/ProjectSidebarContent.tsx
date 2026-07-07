@@ -2,7 +2,7 @@ import React from "react";
 import { useActiveWorkspaceName } from "@/store/AppStore";
 import SideBarMenuItems from "@/v2/layout/SideBar/SideBarMenuItems";
 import ProjectSelector from "@/v2/layout/SideBar/ProjectSelector/ProjectSelector";
-import GitHubStarListItem from "@/v2/layout/SideBar/GitHubStarListItem/GitHubStarListItem";
+
 import SidebarMenuItem from "@/v2/layout/SideBar/MenuItem/SidebarMenuItem";
 import { getWorkspaceMenuItems } from "@/v2/layout/SideBar/helpers/getMenuItems";
 import { Separator } from "@/ui/separator";
@@ -39,9 +39,6 @@ const ProjectSidebarContent: React.FC<ProjectSidebarContentProps> = ({
               <SidebarMenuItem key={item.id} item={item} expanded={expanded} />
             )),
           )}
-        </ul>
-        <ul className={cn("mt-2 flex flex-col", !expanded && "gap-1")}>
-          <GitHubStarListItem expanded={expanded} />
         </ul>
       </div>
     </>

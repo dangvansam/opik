@@ -22,9 +22,11 @@ import org.slf4j.Logger;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.comet.opik.infrastructure.EncryptionUtils.decrypt;
 import static com.comet.opik.infrastructure.log.LogContextAware.wrapWithMdc;
@@ -38,6 +40,9 @@ public class WebhookHttpClient {
 
     private static final String USER_AGENT_VALUE = "Opik-Webhook/1.0";
     public static final String BEARER_PREFIX = "Bearer ";
+
+    public record WebhookResult(String body, int retryCount) {
+    }
 
     private final @NonNull Client httpClient;
     private final @NonNull WebhookConfig webhookConfig;
@@ -56,14 +61,20 @@ public class WebhookHttpClient {
      * @param event The webhook event to send
      * @return A Mono that completes with the response body or "ok" when the webhook is successfully sent or fails permanently
      */
-    public Mono<String> sendWebhook(@NonNull WebhookEvent<?> event) {
+    public Mono<WebhookResult> sendWebhook(@NonNull WebhookEvent<?> event) {
         log.info("Sending webhook event '{}' to URL: '{}', max retries: '{}'",
                 event.getId(), event.getUrl(), event.getMaxRetries());
 
-        // Serialize payload asynchronously (non-blocking JSON serialization)
+        Duration initialDelay = Optional.ofNullable(event.getInitialRetryDelayMs())
+                .map(Duration::ofMillis)
+                .orElse(webhookConfig.getInitialRetryDelay().toJavaDuration());
+
+        var retryCounter = new AtomicInteger(0);
+
         return Mono.deferContextual(
                 ctx -> performWebhookRequest(event, event.getJsonPayload(), ctx.get(RequestContext.WORKSPACE_ID))
-                        .retryWhen(createRetrySpec(event.getId(), event.getMaxRetries()))
+                        .retryWhen(createRetrySpec(event.getId(), event.getMaxRetries(), initialDelay, retryCounter))
+                        .map(body -> new WebhookResult(body, retryCounter.get()))
                         .doOnError(throwable -> logError(event,
                                 ctx.get(RequestContext.WORKSPACE_ID),
                                 "Webhook '%s' permanently failed after all retries".formatted(event.getId()),
@@ -135,14 +146,14 @@ public class WebhookHttpClient {
                                 sink.success(responseBody.orElse("ok"));
                             } else {
                                 var responseBody = readResponseBody(response);
-                                String errorMessage = responseBody
-                                        .map(body -> "Webhook failed with status %d: %s".formatted(response.getStatus(),
-                                                body))
-                                        .orElseGet(
-                                                () -> "Webhook failed with status %d".formatted(response.getStatus()));
+                                String bodyStr = responseBody.orElse(null);
+                                String errorMessage = bodyStr != null
+                                        ? "Webhook failed with status %d: %s".formatted(response.getStatus(), bodyStr)
+                                        : "Webhook failed with status %d".formatted(response.getStatus());
                                 sink.error(new RetryUtils.RetryableHttpException(
                                         errorMessage,
-                                        response.getStatus()));
+                                        response.getStatus(),
+                                        bodyStr));
                             }
                         }
                     }
@@ -182,12 +193,14 @@ public class WebhookHttpClient {
         }
     }
 
-    private Retry createRetrySpec(String eventId, int maxRetries) {
+    private Retry createRetrySpec(String eventId, int maxRetries, Duration initialDelay,
+            AtomicInteger retryCounter) {
         return RetryUtils.handleHttpErrors(
                 maxRetries,
-                webhookConfig.getInitialRetryDelay().toJavaDuration(),
+                initialDelay,
                 webhookConfig.getMaxRetryDelay().toJavaDuration())
                 .doBeforeRetry(retrySignal -> {
+                    retryCounter.incrementAndGet();
                     int attemptNumber = (int) retrySignal.totalRetries() + 1;
                     Throwable error = retrySignal.failure();
 

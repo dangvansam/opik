@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { CellContext } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash } from "lucide-react";
+import { History, MoreHorizontal, Pencil, Trash } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -45,6 +45,15 @@ const AlertsRowActionsCell: React.FunctionComponent<
     });
   }, [navigate, workspaceName, activeProjectId, alert.id]);
 
+  const handleViewEventsClick = useCallback(() => {
+    if (!alert.id) return;
+
+    navigate({
+      to: "/$workspaceName/projects/$projectId/alerts/$alertId/events",
+      params: { workspaceName, projectId: activeProjectId!, alertId: alert.id },
+    });
+  }, [navigate, workspaceName, activeProjectId, alert.id]);
+
   return (
     <CellWrapper
       metadata={context.column.columnDef.meta}
@@ -73,6 +82,10 @@ const AlertsRowActionsCell: React.FunctionComponent<
           <DropdownMenuItem onClick={handleEditClick}>
             <Pencil className="mr-2 size-4" />
             Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleViewEventsClick}>
+            <History className="mr-2 size-4" />
+            View events
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

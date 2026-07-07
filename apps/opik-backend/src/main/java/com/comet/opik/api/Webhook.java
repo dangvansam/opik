@@ -37,6 +37,12 @@ public record Webhook(
         @JsonView({Alert.View.Public.class,
                 Alert.View.Write.class}) Map<@NotBlank String, @NotBlank String> headers,
 
+        @JsonView({Alert.View.Public.class,
+                Alert.View.Write.class}) @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(10) Integer maxRetries,
+
+        @JsonView({Alert.View.Public.class,
+                Alert.View.Write.class}) @jakarta.validation.constraints.Min(100) @jakarta.validation.constraints.Max(60000) Integer retryDelayMs,
+
         @JsonView({
                 Alert.View.Public.class}) @Schema(accessMode = Schema.AccessMode.READ_ONLY) Instant createdAt,
 
@@ -56,6 +62,8 @@ public record Webhook(
                 + ", url=" + Objects.toString(url)
                 + ", secretToken=[REDACTED]"
                 + ", headers=" + Objects.toString(headers)
+                + ", maxRetries=" + Objects.toString(maxRetries)
+                + ", retryDelayMs=" + Objects.toString(retryDelayMs)
                 + ", createdAt=" + Objects.toString(createdAt)
                 + ", createdBy=" + Objects.toString(createdBy)
                 + ", lastUpdatedAt=" + Objects.toString(lastUpdatedAt)

@@ -24,25 +24,6 @@ const SentryErrorFallback: FallbackRender = ({ resetError }) => {
           </Button>{" "}
           directly.
         </p>
-        <p>
-          You can also submit feature requests to our{" "}
-          <Button variant="link" size="sm" asChild className="inline px-0">
-            <a
-              href="https://github.com/comet-ml/opik"
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub repository
-            </a>
-          </Button>
-          , or join our{" "}
-          <Button variant="link" size="sm" asChild className="inline px-0">
-            <a href="https://chat.comet.com" target="_blank" rel="noreferrer">
-              Slack community
-            </a>
-          </Button>{" "}
-          to get help with bugs and questions.
-        </p>
       </div>
 
       <Button onClick={resetError}>Continue</Button>

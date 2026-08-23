@@ -3,15 +3,13 @@ import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import { Blocks, MonitorPlay, MousePointerClick } from "lucide-react";
 import useAppStore, { useActiveProjectId } from "@/store/AppStore";
-import Slack from "@/icons/slack.svg?react";
+
 import { Link } from "@tanstack/react-router";
 import usePluginsStore from "@/store/PluginsStore";
 import useDemoProject from "@/api/projects/useDemoProject";
 
 export const VIDEO_TUTORIAL_LINK =
   "https://www.youtube.com/watch?v=h1XK-dMtUJI";
-export const SLACK_LINK = "http://chat.comet.com";
-
 type HelpLinksContextValue = {
   onCloseParentDialog?: () => void;
 };
@@ -31,7 +29,6 @@ type HelpLinksProps = {
 
 type HelpLinksComponent = React.FC<HelpLinksProps> & {
   InviteDev: React.FC;
-  Slack: React.FC;
   WatchTutorial: React.FC;
   Playground: React.FC;
   DemoProject: React.FC;
@@ -88,23 +85,6 @@ const InviteDevButton: React.FC = () => {
 };
 InviteDevButton.displayName = "HelpLinks.InviteDev";
 
-const SlackButton: React.FC = () => {
-  return (
-    <Button
-      className="flex-1"
-      variant="outline"
-      asChild
-      id="help-links-slack"
-      data-fs-element="HelpLinksSlack"
-    >
-      <a href={SLACK_LINK} target="_blank" rel="noopener noreferrer">
-        <Slack className="mr-2 size-4" />
-        <span>Get help in Slack</span>
-      </a>
-    </Button>
-  );
-};
-SlackButton.displayName = "HelpLinks.Slack";
 
 const PlaygroundButton: React.FC = () => {
   const workspaceName = useAppStore((state) => state.activeWorkspaceName);
@@ -180,7 +160,6 @@ const WatchTutorialButton: React.FC = () => {
 WatchTutorialButton.displayName = "HelpLinks.WatchTutorial";
 
 HelpLinks.InviteDev = InviteDevButton;
-HelpLinks.Slack = SlackButton;
 HelpLinks.WatchTutorial = WatchTutorialButton;
 HelpLinks.Playground = PlaygroundButton;
 HelpLinks.DemoProject = DemoProjectButton;

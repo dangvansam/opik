@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import usePluginsStore from "@/store/PluginsStore";
 
-import SupportHubSubMenu from "@/shared/SupportHub/SupportHubSubMenu";
+
 import SidebarMenuItem, {
   MENU_ITEM_TYPE,
   MenuItem,
@@ -48,11 +48,6 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
         expanded={expanded}
         compact
       />,
-      <SupportHubSubMenu
-        key="support-hub"
-        variant="dropdown"
-        expanded={expanded}
-      />,
     ];
 
     if (SidebarInviteDevButton) {
@@ -84,9 +79,13 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
       <div className="comet-header-height relative flex w-full items-center justify-between gap-6 border-b">
         <Link
           to={HOME_PATH}
-          className="absolute left-[18px] z-10 block"
+          className="absolute left-[18px] z-10 flex items-center"
           params={{ workspaceName }}
-        />
+        >
+          <span className="comet-body-s-accented whitespace-nowrap text-foreground">
+            AI Evaluation Platform
+          </span>
+        </Link>
       </div>
       <div className="relative flex h-[calc(100%-var(--header-height))]">
         {renderExpandCollapseButton()}

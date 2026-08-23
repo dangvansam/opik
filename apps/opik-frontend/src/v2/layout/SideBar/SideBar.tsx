@@ -34,9 +34,14 @@ const SideBar: React.FunctionComponent<SideBarProps> = ({
       <div className="comet-header-height relative flex w-full items-center justify-end border-b pr-2">
         <Link
           to={HOME_PATH}
-          className="absolute left-[15px] top-1/2 block -translate-y-1/2"
+          className="absolute left-[15px] top-1/2 flex -translate-y-1/2 items-center gap-2"
           params={{ workspaceName }}
         >
+          {expanded && (
+            <span className="comet-body-s-accented whitespace-nowrap text-foreground">
+              AI Evaluation Platform
+            </span>
+          )}
           {canToggle && !expanded && (
             <TooltipWrapper content="Expand sidebar" side="right">
               <Button

@@ -152,7 +152,6 @@ const HelpGuideDialog: React.FunctionComponent<HelpGuideDialogProps> = ({
           >
             <HelpLinks.Playground />
             <HelpLinks.DemoProject />
-            <HelpLinks.Slack />
           </HelpLinks>
         </DialogAutoScrollBody>
       </DialogContent>

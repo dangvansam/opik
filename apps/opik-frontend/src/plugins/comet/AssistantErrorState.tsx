@@ -1,6 +1,6 @@
 import React from "react";
 import { AlertCircle, X } from "lucide-react";
-import { SLACK_LINK } from "@/shared/SupportHub/SupportHubSubMenu";
+
 import { cn } from "@/lib/utils";
 import { AssistantSurfaceVariant } from "@/types/assistant-sidebar";
 
@@ -67,15 +67,7 @@ const EscalatedError: React.FC<ExpandedErrorProps> = ({
       Assistant is currently unavailable
     </div>
     <p className="text-xs text-muted-foreground">
-      Please try again later or{" "}
-      <a
-        href={SLACK_LINK}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-primary underline underline-offset-2 hover:text-primary-hover"
-      >
-        get help on Slack
-      </a>
+      Please try again later
     </p>
     <button
       type="button"

@@ -272,7 +272,6 @@ const QuickInstallDialog: React.FunctionComponent<QuickInstallDialogProps> = ({
             description="Get help from your team or ours. Choose the option that works best for you."
           >
             <HelpLinks.InviteDev />
-            <HelpLinks.Slack />
             <HelpLinks.WatchTutorial />
           </HelpLinks>
         </DialogAutoScrollBody>

@@ -5,7 +5,7 @@ import { useFeatureFlagVariantKey } from "posthog-js/react";
 import { Button } from "@/ui/button";
 import { Separator } from "@/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
-import Slack from "@/icons/slack.svg?react";
+
 import usePluginsStore from "@/store/PluginsStore";
 import { useUserApiKey } from "@/store/AppStore";
 import useProjectByName from "@/api/projects/useProjectByName";
@@ -29,7 +29,6 @@ import ShowDemoProjectButton from "./ShowDemoProjectButton";
 import AgentCopyButtons from "@/v2/pages-shared/onboarding/AgentCopyButtons";
 import { INTEGRATIONS } from "@/constants/integrations";
 import {
-  SLACK_LINK,
   VIDEO_TUTORIAL_LINK,
 } from "@/v2/pages-shared/onboarding/IntegrationExplorer/components/HelpLinks";
 
@@ -196,19 +195,6 @@ const ConnectAgentStep: React.FC = () => {
             </div>
             <div className="flex gap-2.5">
               {InviteDevButton && <InviteDevButton size="2xs" />}
-              <Button
-                variant="outline"
-                size="2xs"
-                className="flex-1"
-                asChild
-                id="onboarding-slack"
-                data-fs-element="OnboardingSlack"
-              >
-                <a href={SLACK_LINK} target="_blank" rel="noopener noreferrer">
-                  <Slack className="mr-1.5 size-3" />
-                  Get help in Slack
-                </a>
-              </Button>
               <Button
                 variant="outline"
                 size="2xs"

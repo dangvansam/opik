@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import TooltipWrapper from "@/shared/TooltipWrapper/TooltipWrapper";
-import SupportHubSubMenu from "@/shared/SupportHub/SupportHubSubMenu";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar";
 import { Switch } from "@/ui/switch";
 import {
@@ -260,8 +260,6 @@ const UserMenu = () => {
             ) : null}
             {renderInviteMembers()}
           </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <SupportHubSubMenu />
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuSub>
